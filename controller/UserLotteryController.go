@@ -64,13 +64,35 @@ func InsertLotto(c *fiber.Ctx) error {
 	var latestLotto models.LottoTicket
 
 	if err := database.DBconn.Last(&latestLotto).Error; err != nil {
-		latestLotto.Period = 1
+		if err == gorm.ErrRecordNotFound {
+			latestLotto.Period = 1
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"msg": "ไม่สามารถดึงข้อมูลลอตโต้ล่าสุดได้",
+			})
+		}
 	} else {
-		latestLotto.Period += 1
+		var count int64
+		err := database.DBconn.Table("Winner").
+			Joins("JOIN LottoTicket ON Winner.TicketID = LottoTicket.TicketID").
+			Where("LottoTicket.Period = ?", latestLotto.Period).
+			Count(&count).Error
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"msg": "ไม่สามารถดึงข้อมูลรางวัลที่ออกได้",
+			})
+		}
+
+		if count >= 5 {
+			latestLotto.Period += 1
+		} else {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"msg": "ลอตโต้ชุดนี้เริ่มออกรางวัลแล้ว ไม่สามารถเพิ่มได้",
+			})
+		}
 	}
 
 	for _, number := range lottoNumbers {
-
 		datainsert := models.LottoTicket{
 			MemberID: nil,
 			Number:   number,

@@ -48,7 +48,7 @@ func GenerateUniqueDraw(c *fiber.Ctx) error {
 	err = query.Order("RAND()").First(&selectedLotto).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่พบตั๋วล็อตโต้ที่มีสิทธิ์"})
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่พบตั๋วล็อตโต้ที่มีคนซื้อ"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถเรียกข้อมูลตั๋วล็อตโต้"})
 	}
