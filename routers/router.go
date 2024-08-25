@@ -14,6 +14,7 @@ func SetupRouter(app *fiber.App) {
 	Sales := app.Group("/sales")
 	Draw := app.Group("/draw")
 
+	Auth.Get("/SelectAllMember", controller.SelectAllMember)     //หาสมาชิกทั้งหมดที่สมัคร
 	Auth.Get("/Login", controller.Login)                         //ล็อคอิน -Pa
 	Auth.Post("/Register", controller.Register)                  //สมัครสมาชิก -Pa
 	Auth.Put("/UpdateProfile/:mid", controller.UpdateProfile)    //แก้ไขข้อมูลส่วนตัว -Pa
@@ -22,16 +23,17 @@ func SetupRouter(app *fiber.App) {
 
 	Wallet.Put("/AddFunds/:mid", controller.AddFunds) //เพิ่มจำนวนเงิน -Pa
 
-	Lottery.Post("/insertLottery", controller.InsertLotto)                        //เพิ่มลอตโต้ -Pa
-	Lottery.Get("/GetDrawSchedule", controller.GetDrawSchedule)                   //ค้นหารอบของทุกเลข -Pa
-	Lottery.Post("/InsertCart", controller.InsertCart)                            //เพิ่มลงตระกร้า -Pa
-	Lottery.Get("/GetNumbersInCart/:mid", controller.GetNumbersInCart)            //ค้นหาเลขที่อยู่ในตระกร้าของผู้ใช้ -Pa
-	Lottery.Delete("/RemoveNumberFromCart/:cid", controller.RemoveNumberFromCart) //ลบเลขที่ผู้ใช้เอาออกจากตระกร้า -Pa
-	Lottery.Put("/ProcessPayment/:mid", controller.ProcessPayment)                //ผู้ใช้ชำระเงิน -Pa
-	Lottery.Get("/SelectDraw/:period", controller.SelectDraw)                     //เลือกรอบที่ออกรางวัล -Pa
-	Lottery.Get("/GetUserDrawNumbers/:mid", controller.GetUserDrawNumbers)        //เอาเลขของผู้ใช้ในรอบปัจจุบันออกมา -Pa
-	Lottery.Get("/GetWinningNumbers", controller.GetWinningNumbers)               //ค้นหาเลขที่ผู้ใช้ถูกรางวัล -Pa
-	Lottery.Put("/AddWinningsToWallet", controller.AddWinningsToWallet)           //เพิ่มจำนวนเงินผู้ใช้ตามที่ถูกรางวัล -Pa
+	Lottery.Get("/SelectAllLotto", controller.SelectAllLotto)                //เพิ่มลอตโต้ -Pa
+	Lottery.Post("/insertLottery", controller.InsertLotto)                   //เพิ่มลอตโต้ -Pa
+	Lottery.Get("/GetDrawSchedule", controller.GetDrawSchedule)              //ค้นหารอบของทุกเลข -Pa
+	Lottery.Post("/InsertCart", controller.InsertCart)                       //เพิ่มลงตระกร้า -Pa
+	Lottery.Get("/GetNumbersInCart/:mid", controller.GetNumbersInCart)       //ค้นหาเลขที่อยู่ในตระกร้าของผู้ใช้ -Pa
+	Lottery.Delete("/RemoveNumberFromCart", controller.RemoveNumberFromCart) //ลบเลขที่ผู้ใช้เอาออกจากตระกร้า -Pa
+	Lottery.Put("/ProcessPayment/:mid", controller.ProcessPayment)           //ผู้ใช้ชำระเงิน -Pa
+	Lottery.Get("/SelectDraw/:period", controller.SelectDraw)                //เลือกรอบที่ออกรางวัล -Pa
+	Lottery.Get("/GetUserDrawNumbers/:mid", controller.GetUserDrawNumbers)   //เอาเลขของผู้ใช้ในรอบปัจจุบันออกมา -Pa
+	Lottery.Get("/GetWinningNumbers", controller.GetWinningNumbers)          //ค้นหาเลขที่ผู้ใช้ถูกรางวัล -Pa
+	Lottery.Put("/AddWinningsToWallet", controller.AddWinningsToWallet)      //เพิ่มจำนวนเงินผู้ใช้ตามที่ถูกรางวัล -Pa
 
 	Sales.Get("/GetSalesData", controller.GetSalesData) //รวมข้อมูลยอดขาย -Pa
 	// Sales.Get("/GetSalesSummary", controller.GetSalesSummary)                   //สรุปยอดขาย

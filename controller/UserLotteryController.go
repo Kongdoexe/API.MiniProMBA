@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Kongdoexe/goland/database"
@@ -11,8 +12,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
-
-var generatedNumbers = make(map[string]bool)
 
 type WinningsToWallet struct {
 	ID   int64
@@ -25,10 +24,22 @@ type Result struct {
 	Gratuity  int
 }
 
-func generateUniqueLotto() string {
-	for {
-		rand.Seed(time.Now().UnixNano())
+var (
+	generatedNumbers = make(map[string]bool)
+	mu               sync.Mutex // ใช้สำหรับการทำงานพร้อมกันอย่างปลอดภัย
+)
 
+// ประกาศ seed สำหรับการสุ่มเพียงครั้งเดียว
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+// ฟังก์ชันสำหรับการสร้างหมายเลขล็อตโต้ที่ไม่ซ้ำ
+func generateUniqueLotto() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	for {
 		lottoNumber := ""
 		for i := 0; i < 6; i++ {
 			lottoNumber += strconv.Itoa(rand.Intn(10))
@@ -38,15 +49,13 @@ func generateUniqueLotto() string {
 			generatedNumbers[lottoNumber] = true
 			return lottoNumber
 		}
-
 	}
 }
 
+// ฟังก์ชันสำหรับการสร้าง 100 หมายเลขล็อตโต้ที่ไม่ซ้ำ
 func generate100UniqueLottos() []string {
 	lottoNumbers := []string{}
 	uniqueNumbers := make(map[string]bool)
-
-	rand.Seed(time.Now().UnixNano()) // ตั้งค่า seed สำหรับการสุ่ม
 
 	for len(lottoNumbers) < 100 {
 		number := fmt.Sprintf("%06d", rand.Intn(1000000))
@@ -57,6 +66,20 @@ func generate100UniqueLottos() []string {
 	}
 
 	return lottoNumbers
+}
+
+func SelectAllLotto(c *fiber.Ctx) error {
+	var lotto []models.LottoTicket
+
+	if err := database.DBconn.Find(&lotto).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถดึงข้อมูลออกมาดูได้"})
+	}
+
+	if len(lotto) == 0 {
+		return c.JSON(fiber.Map{"msg": "ไม่มีข้อมูลลอตโต้"})
+	}
+
+	return c.JSON(lotto)
 }
 
 func InsertLotto(c *fiber.Ctx) error {
@@ -128,13 +151,11 @@ func GetDrawSchedule(c *fiber.Ctx) error {
 
 	if len(lotto) == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"msg": "ไม่พบตารางการออกรางวัลสำหรับช่วงเวลานี้ หรือ ลอตเตอรี่ไม่ได้ถูกเพิ่ม",
+			"msg": "ไม่พบลอตโต้สำหรับช่วงเวลานี้ หรือ ลอตเตอรี่ไม่ได้ถูกเพิ่ม",
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"msg": lotto,
-	})
+	return c.JSON(lotto)
 }
 
 func InsertCart(c *fiber.Ctx) error {
@@ -152,6 +173,11 @@ func InsertCart(c *fiber.Ctx) error {
 
 	if err := database.DBconn.Where("TicketID = ? AND MemberID IS NULL", data.TicketID).First(&Lotto).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่พบล็อตโต้หรือถูกซื้อไปแล้วไปแล้ว"})
+	}
+
+	result := database.DBconn.Where("LottoTicketID = ? AND MemberID = ?", data.TicketID, data.MemberID).First(&Cart)
+	if result.RowsAffected > 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": "มีลอตโต้เลขนี้ในตระกร้าแล้ว"})
 	}
 
 	var count int64
@@ -192,7 +218,7 @@ func GetNumbersInCart(c *fiber.Ctx) error {
 	}
 
 	if err := database.DBconn.First(&Member, mid).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "Member not found"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่พบผู้ใช้"})
 	}
 
 	if err := database.DBconn.Where("MemberID = ?", mid).Find(&Cart).Error; err != nil {
@@ -224,21 +250,30 @@ func GetNumbersInCart(c *fiber.Ctx) error {
 }
 
 func RemoveNumberFromCart(c *fiber.Ctx) error {
-	cid := c.Params("cid")
-	var Cart models.Cart
+	var data struct {
+		CartID   int `json:"cartID"`
+		MemberID int `json:"memberID"`
+	}
 
-	result := database.DBconn.Delete(&Cart, "CartID = ?", cid)
+	// อ่านข้อมูลจาก body
+	if err := c.BodyParser(&data); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": "ไม่สามารถแยกวิเคราะห์ข้อมูลคำขอได้"})
+	}
+
+	// ตรวจสอบความถูกต้องของข้อมูล
+	if data.CartID == 0 || data.MemberID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": "รหัสตระกร้าหรือรหัสสมาชิกไม่ถูกต้อง"})
+	}
+
+	// ลบข้อมูลจากฐานข้อมูล
+	result := database.DBconn.Delete(&models.Cart{}, "CartID = ? AND MemberID = ?", data.CartID, data.MemberID)
 
 	if result.RowsAffected == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"msg": "ไม่พบรหัสตระกร้า",
-		})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่พบตระกร้าที่ตรงกับรหัสที่ระบุ"})
 	}
 
 	if result.Error != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"msg": "ไม่สามารถลบตระกร้าได้",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถลบข้อมูลตระกร้าได้"})
 	}
 
 	return c.JSON(fiber.Map{"msg": "ลบตระกร้าสำเร็จ"})
@@ -248,6 +283,7 @@ func ProcessPayment(c *fiber.Ctx) error {
 	mid := c.Params("mid")
 	var member models.Member
 	var cart []models.Cart
+	var lottodelete []models.LottoTicket
 	var cashpay int
 
 	// ตรวจสอบว่าพบ Member หรือไม่
@@ -258,51 +294,70 @@ func ProcessPayment(c *fiber.Ctx) error {
 	// ดึงข้อมูล Cart ของ Member
 	if err := database.DBconn.Where("MemberID = ?", mid).Find(&cart).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"msg": "ไม่สามารถเรียกข้อมูลตระกร้าได้",
+			"msg": "ไม่สามารถเรียกข้อมูลตะกร้าได้",
 		})
 	}
 
 	// ตรวจสอบว่ามีรายการใน Cart หรือไม่
 	if len(cart) == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่มีล็อตโต้ในตระกร้า"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่มีล็อตโต้ในตะกร้า"})
 	}
 
-	// คำนวณราคาจากจำนวนรายการใน Cart
-	cashpay = len(cart) * 80
-	member.WalletBalance -= cashpay
+	successfulPurchases := 0
 
 	for _, cartItem := range cart {
 		var lottoTicket models.LottoTicket
-		if err := database.DBconn.First(&lottoTicket, cartItem.LottoTicketID).Error; err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"msg": "ไม่พบล็อตโต้"})
+
+		// ค้นหาหมายเลขล็อตโต้ในฐานข้อมูล
+		if err := database.DBconn.Where("TicketID = ?", cartItem.LottoTicketID).First(&lottoTicket).Error; err != nil {
+			// ถ้าหมายเลขล็อตโต้ไม่พบ ให้ลบรายการจากตะกร้าและดำเนินการต่อ
+			if err := database.DBconn.Delete(&cartItem).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "เกิดข้อผิดพลาดในการลบลอตโต้ที่ไม่พบ"})
+			}
+			continue
 		}
 
 		if lottoTicket.MemberID != nil {
-			database.DBconn.Delete(&cartItem)
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-				"LottoTicketID": lottoTicket.TicketID,
-				"msg":           "ลอตโต้ถูกซื้อกับสมาชิกแล้ว นำออกจากตระกร้าแล้ว",
-			})
+			// เพิ่มล็อตโต้ที่ไม่สามารถซื้อได้ไปยังรายการที่ต้องลบ
+			lottodelete = append(lottodelete, lottoTicket)
+			if err := database.DBconn.Delete(&cartItem).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "เกิดข้อผิดพลาดในการลบลอตโต้ที่ถูกซื้อไปแล้ว"})
+			}
+			continue
 		}
 
+		// อัพเดตล็อตโต้ให้เป็นของสมาชิกปัจจุบัน
 		lottoTicket.MemberID = &member.MemberID
-		database.DBconn.Save(&lottoTicket)
+		if err := database.DBconn.Save(&lottoTicket).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถบันทึกข้อมูลล็อตโต้ได้"})
+		}
+
+		successfulPurchases++
 	}
 
-	// อัพเดตข้อมูล Member หลังจากหักเงิน
+	cashpay = successfulPurchases * 80
+
+	if member.WalletBalance < cashpay {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": "ยอดเงินในกระเป๋าไม่เพียงพอ"})
+	}
+
+	// หักเงินจากกระเป๋าของสมาชิก
+	member.WalletBalance -= cashpay
+
 	if err := database.DBconn.Save(&member).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ล้มเหลวในการประมวลผลการชำระเงิน"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ล้มเหลวในการอัพเดตยอดเงินในกระเป๋า"})
 	}
 
 	// ลบรายการทั้งหมดจาก Cart หลังจากทำการซื้อสำเร็จ
-	if err := database.DBconn.Delete(&cart, "MemberID = ?", member.MemberID).Error; err != nil {
+	if err := database.DBconn.Delete(&cart).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"msg": "ไม่สามารถลบตระกร้าได้",
+			"msg": "ไม่สามารถลบตระกร้าหลังจากการซื้อสำเร็จ",
 		})
 	}
 
 	return c.JSON(fiber.Map{
-		"message": "ดำเนินการชำระเงินเรียบร้อยแล้ว",
+		"msg":         "ดำเนินการชำระเงินเรียบร้อยแล้ว",
+		"LottoDelete": lottodelete,
 	})
 }
 

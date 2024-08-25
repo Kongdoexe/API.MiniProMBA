@@ -27,6 +27,10 @@ func main() {
 		panic("Error in sql connection.")
 	}
 
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"msg": "Hello, World!!!"})
+	})
+
 	defer sqlDb.Close()
 
 	routers.SetupRouter(app)
