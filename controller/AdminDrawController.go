@@ -103,17 +103,24 @@ func Getprize(c *fiber.Ctx) error {
 func ResetSystem(c *fiber.Ctx) error {
 	tables := []string{"Member", "LottoTicket", "Cart", "Winner"}
 
-	// ลบข้อมูลในแต่ละตาราง
-	for _, table := range tables {
-		if err := database.DBconn.Exec(fmt.Sprintf("DELETE FROM `%s`", table)).Error; err != nil {
+	// Delete data from each table
+	for i, table := range tables {
+		var query string
+		if i == 0 {
+			query = fmt.Sprintf("DELETE FROM `%s` Where IsAdmin = 0", table)
+		} else {
+			query = fmt.Sprintf("DELETE FROM `%s`", table)
+		}
+
+		if err := database.DBconn.Exec(query).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"msg": fmt.Sprintf("Delete %s Failed.", table),
+				"msg": fmt.Sprintf("Delete %s Failed: %s", table, err.Error()),
 			})
 		}
 
 		if err := ResetAutoIncrement(database.DBconn, table); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"msg": fmt.Sprintf("Reset AUTO_INCREMENT %s Failed.", table),
+				"msg": fmt.Sprintf("Reset AUTO_INCREMENT %s Failed: %s", table, err.Error()),
 			})
 		}
 	}
