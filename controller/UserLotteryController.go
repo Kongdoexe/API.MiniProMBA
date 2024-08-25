@@ -284,7 +284,8 @@ func ProcessPayment(c *fiber.Ctx) error {
 	var member models.Member
 	var cart []models.Cart
 	var lottodelete []models.LottoTicket
-	var cashpay int
+	var deletedLottoNumbers []string
+	var totalCost int
 
 	// ตรวจสอบว่าพบ Member หรือไม่
 	if err := database.DBconn.First(&member, mid).Error; err != nil {
@@ -293,9 +294,7 @@ func ProcessPayment(c *fiber.Ctx) error {
 
 	// ดึงข้อมูล Cart ของ Member
 	if err := database.DBconn.Where("MemberID = ?", mid).Find(&cart).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"msg": "ไม่สามารถเรียกข้อมูลตะกร้าได้",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถเรียกข้อมูลตะกร้าได้"})
 	}
 
 	// ตรวจสอบว่ามีรายการใน Cart หรือไม่
@@ -317,9 +316,10 @@ func ProcessPayment(c *fiber.Ctx) error {
 			continue
 		}
 
+		// ตรวจสอบว่าหมายเลขล็อตโต้ถูกซื้อไปแล้วหรือยัง
 		if lottoTicket.MemberID != nil {
-			// เพิ่มล็อตโต้ที่ไม่สามารถซื้อได้ไปยังรายการที่ต้องลบ
 			lottodelete = append(lottodelete, lottoTicket)
+			deletedLottoNumbers = append(deletedLottoNumbers, lottoTicket.Number)
 			if err := database.DBconn.Delete(&cartItem).Error; err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "เกิดข้อผิดพลาดในการลบลอตโต้ที่ถูกซื้อไปแล้ว"})
 			}
@@ -335,29 +335,39 @@ func ProcessPayment(c *fiber.Ctx) error {
 		successfulPurchases++
 	}
 
-	cashpay = successfulPurchases * 80
+	// คำนวณยอดชำระเงินทั้งหมด
+	totalCost = successfulPurchases * 80
 
-	if member.WalletBalance < cashpay {
+	// ตรวจสอบว่ายอดเงินในกระเป๋ามีเพียงพอหรือไม่
+	if member.WalletBalance < totalCost {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": "ยอดเงินในกระเป๋าไม่เพียงพอ"})
 	}
 
 	// หักเงินจากกระเป๋าของสมาชิก
-	member.WalletBalance -= cashpay
-
+	member.WalletBalance -= totalCost
 	if err := database.DBconn.Save(&member).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ล้มเหลวในการอัพเดตยอดเงินในกระเป๋า"})
 	}
 
 	// ลบรายการทั้งหมดจาก Cart หลังจากทำการซื้อสำเร็จ
 	if err := database.DBconn.Delete(&cart).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"msg": "ไม่สามารถลบตระกร้าหลังจากการซื้อสำเร็จ",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถลบตระกร้าหลังจากการซื้อสำเร็จ"})
+	}
+
+	if len(lottodelete) == len(cart) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": "ลอตโต้ที่คุณจะซื้อมีคนซื้อไปแล้วหรือถูกลบ"})
+	}
+
+	// ตรวจสอบว่ามีล็อตโต้ที่ถูกลบหรือไม่
+	if len(lottodelete) > 1 {
+		return c.JSON(fiber.Map{
+			"msg":          "ดำเนินการชำระเงินเรียบร้อยแล้ว แต่มีล็อตโต้ที่ถูกซื้อไปแล้ว:",
+			"LottoDeleted": deletedLottoNumbers,
 		})
 	}
 
 	return c.JSON(fiber.Map{
-		"msg":         "ดำเนินการชำระเงินเรียบร้อยแล้ว",
-		"LottoDelete": lottodelete,
+		"msg": "ดำเนินการชำระเงินเรียบร้อยแล้ว",
 	})
 }
 
