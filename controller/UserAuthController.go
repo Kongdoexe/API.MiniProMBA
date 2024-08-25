@@ -30,7 +30,7 @@ func SelectAllMember(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"msg": "ไม่มีสมาชิกในระบบ"})
 	}
 
-	return c.JSON(fiber.Map{"msg": member})
+	return c.JSON(member)
 }
 
 func Register(c *fiber.Ctx) error {
