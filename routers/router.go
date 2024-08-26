@@ -34,6 +34,7 @@ func SetupRouter(app *fiber.App) {
 	Lottery.Get("/GetUserDrawNumbers/:mid", controller.GetUserDrawNumbers)   //เอาเลขของผู้ใช้ในรอบปัจจุบันออกมา -Pa
 	Lottery.Get("/GetWinningNumbers", controller.GetWinningNumbers)          //ค้นหาเลขที่ผู้ใช้ถูกรางวัล -Pa
 	Lottery.Put("/AddWinningsToWallet", controller.AddWinningsToWallet)      //เพิ่มจำนวนเงินผู้ใช้ตามที่ถูกรางวัล -Pa
+	Lottery.Gut("/generate100UniqueLottos", controller.generate100UniqueLottos) 
 
 	Sales.Get("/GetSalesData", controller.GetSalesData) //รวมข้อมูลยอดขาย -Pa
 	// Sales.Get("/GetSalesSummary", controller.GetSalesSummary)                   //สรุปยอดขาย
