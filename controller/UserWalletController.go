@@ -11,7 +11,7 @@ func AddFunds(c *fiber.Ctx) error {
 	var member models.Member
 
 	var data struct {
-		Cash int `json:"cash"`
+		Gratuity int `json:"gratuity"`
 	}
 
 	if err := database.DBconn.First(&member, mid).Error; err != nil {
@@ -22,7 +22,7 @@ func AddFunds(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"msg": err.Error()})
 	}
 
-	member.WalletBalance += data.Cash
+	member.WalletBalance += data.Gratuity
 	if err := database.DBconn.Save(&member).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถเพิ่มเงินได้"})
 	}

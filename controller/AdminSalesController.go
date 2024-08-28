@@ -7,22 +7,42 @@ import (
 )
 
 func GetSalesData(c *fiber.Ctx) error {
+	data := map[string]interface{}{
+		"salesSummary":          0,
+		"soldNumbersCount":      0,
+		"remainingNumbersCount": 0,
+	}
+
 	salesSummary, err := getSalesSummaryData()
 	if err != nil {
-		return c.Status(500).SendString("ไม่สามารถนับจำนวนทั้งหมดได้")
+		return c.JSON(data)
+	}
+
+	data = map[string]interface{}{
+		"salesSummary":          salesSummary,
+		"soldNumbersCount":      0,
+		"remainingNumbersCount": 0,
 	}
 
 	soldNumbersCount, err := getSoldNumbersCountData()
 	if err != nil {
-		return c.Status(500).SendString("ไม่สามารถนับจำนวนยอดขายได้")
+		return c.JSON(data)
+
+	}
+
+	data = map[string]interface{}{
+		"salesSummary":          salesSummary,
+		"soldNumbersCount":      soldNumbersCount,
+		"remainingNumbersCount": 0,
 	}
 
 	remainingNumbersCount, err := getRemainingNumbersCountData()
 	if err != nil {
-		return c.Status(500).SendString("ไม่สามารถรับการนับจำนวนที่เหลือได้")
+		return c.JSON(data)
+
 	}
 
-	data := map[string]interface{}{
+	data = map[string]interface{}{
 		"salesSummary":          salesSummary,
 		"soldNumbersCount":      soldNumbersCount,
 		"remainingNumbersCount": remainingNumbersCount,

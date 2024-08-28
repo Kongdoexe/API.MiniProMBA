@@ -494,17 +494,27 @@ func AddWinningsToWallet(c *fiber.Ctx) error {
 		})
 	}
 
+	winnerFound := false
 	for _, data := range form.Data {
 		if data.HasWinner {
 			member.WalletBalance += data.Gratuity
+			winnerFound = true
 
 			if err := database.DBconn.Save(&member).Error; err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"msg": "ไม่สามารถอัปเดตยอดเงินในกระเป๋าได้"})
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"msg": "ไม่สามารถอัปเดตยอดเงินในกระเป๋าได้",
+				})
 			}
 		}
 	}
 
+	if winnerFound {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"msg": "เพิ่มเงินรางวัลเข้ากระเป๋าเงินเรียบร้อยแล้ว",
+		})
+	}
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"msg": "เพิ่มเงินรางวัลเข้ากระเป๋าเงินเรียบร้อยแล้ว",
+		"msg": "ครั้งนี้อาจจะไม่ใช่ครั้งของเรา แต่โอกาสหน้ามาแน่นอน สู้ต่อไป!",
 	})
 }

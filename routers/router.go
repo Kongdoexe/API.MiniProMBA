@@ -15,7 +15,7 @@ func SetupRouter(app *fiber.App) {
 	Draw := app.Group("/draw")
 
 	Auth.Get("/SelectAllMember", controller.SelectAllMember)     //หาสมาชิกทั้งหมดที่สมัคร
-	Auth.Get("/Login", controller.Login)                         //ล็อคอิน -Pa
+	Auth.Post("/Login", controller.Login)                        //ล็อคอิน -Pa
 	Auth.Post("/Register", controller.Register)                  //สมัครสมาชิก -Pa
 	Auth.Put("/UpdateProfile/:mid", controller.UpdateProfile)    //แก้ไขข้อมูลส่วนตัว -Pa
 	Auth.Put("/ChangePassword/:mid", controller.ChangePassword)  //เปลี่ยนรหัสผ่าน -Pa
@@ -32,7 +32,7 @@ func SetupRouter(app *fiber.App) {
 	Lottery.Put("/ProcessPayment/:mid", controller.ProcessPayment)           //ผู้ใช้ชำระเงิน -Pa
 	Lottery.Get("/SelectDraw/:period", controller.SelectDraw)                //เลือกรอบที่ออกรางวัล -Pa
 	Lottery.Get("/GetUserDrawNumbers/:mid", controller.GetUserDrawNumbers)   //เอาเลขของผู้ใช้ในรอบปัจจุบันออกมา -Pa
-	Lottery.Get("/GetWinningNumbers", controller.GetWinningNumbers)          //ค้นหาเลขที่ผู้ใช้ถูกรางวัล -Pa
+	Lottery.Post("/GetWinningNumbers", controller.GetWinningNumbers)         //ค้นหาเลขที่ผู้ใช้ถูกรางวัล -Pa
 	Lottery.Put("/AddWinningsToWallet", controller.AddWinningsToWallet)      //เพิ่มจำนวนเงินผู้ใช้ตามที่ถูกรางวัล -Pa
 
 	Sales.Get("/GetSalesData", controller.GetSalesData) //รวมข้อมูลยอดขาย -Pa
